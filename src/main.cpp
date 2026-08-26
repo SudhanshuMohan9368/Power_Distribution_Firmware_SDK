@@ -23,6 +23,7 @@
 
 #include "board.h"
 #include "debounce.h"
+#include "debug_log.h"
 #include "rgb_states.h"
 #include "can_bus.h"
 #include "can_handler.h"
@@ -158,7 +159,7 @@ void sendStatus() {
 
     printf("{\"smps\":%d,\"uv\":%d,\"fan\":%d,\"light\":%d,\"heater\":%d,"
            "\"emergency\":%d,\"limit\":%d,\"hall\":%d,\"powerbtn\":%d,"
-           "\"v24\":%.2f,\"neo\":%d",
+           "\"v24\":%.2f,\"neo\":%d,\"drops\":%lu,\"buserr\":%lu,\"txfail\":%lu",
            smpsOn && !emergencyActive() ? 1 : 0,
            uvOn ? 1 : 0,
            fanOn ? 1 : 0,
@@ -169,7 +170,10 @@ void sendStatus() {
            db_hall.stableState == 0 ? 1 : 0,
            db_powerbtn.stableState == 0 ? 1 : 0,
            (double)read24V(),
-           (int)neo.state);
+           (int)neo.state,
+           (unsigned long)can_bus_rx_dropped(),
+           (unsigned long)can_bus_bus_errors(),
+           (unsigned long)can_bus_tx_failed());
 
     if (softOffPending) {
         auto t = (int32_t)(softOffRestartAt - millis());
@@ -199,7 +203,7 @@ static void serviceCanHeartbeat() {
         lastCanHeartbeatMs = millis();
         if (!canActive) {
             canActive = true;
-            printf("CAN: heartbeat -- TX now active\n");
+            DLOG("CAN: heartbeat -- TX now active\n");
         }
         sendStatus();
     }
@@ -286,18 +290,18 @@ static void setup() {
             softOffPending = false;
             smpsOn         = true;
             applyOutputs();
-            printf("EVENT: soft-off timer -> SMPS ON (auto-restart)\n");
+            DLOG("EVENT: soft-off timer -> SMPS ON (auto-restart)\n");
             if (canActive) sendStatus();
         }
 
         // 3. Emergency stop
         if (emgChanged) {
             if (emergencyActive()) {
-                printf("EVENT: EMERGENCY pressed -> SMPS forced OFF\n");
+                DLOG("EVENT: EMERGENCY pressed -> SMPS forced OFF\n");
                 forceMachineOff();
                 sendStatus();
             } else {
-                printf("EVENT: emergency released -> power button enabled\n");
+                DLOG("EVENT: emergency released -> power button enabled\n");
                 sendStatus();
             }
         }
@@ -305,21 +309,21 @@ static void setup() {
         // 4. Power button -- START ONLY, not a toggle
         if (btnChanged && db_powerbtn.stableState == 0) {
             if (emergencyActive()) {
-                printf("EVENT: power ignored -> emergency active\n");
+                DLOG("EVENT: power ignored -> emergency active\n");
             } else if (!smpsOn) {
                 smpsOn         = true;
                 softOffPending = false;  // manual start cancels any pending soft-off timer
                 applyOutputs();
-                printf("EVENT: power button -> SMPS ON (start)\n");
+                DLOG("EVENT: power button -> SMPS ON (start)\n");
                 sendStatus();
             } else {
-                printf("EVENT: power button ignored -> SMPS already ON\n");
+                DLOG("EVENT: power button ignored -> SMPS already ON\n");
             }
         }
 
         // 5. Limit switch event
         if (limChanged) {
-            printf("EVENT: limit GP12 %s\n", db_limit.stableState == 0 ? "TRIGGERED" : "OPEN");
+            DLOG("EVENT: limit GP12 %s\n", db_limit.stableState == 0 ? "TRIGGERED" : "OPEN");
             sendStatus();
         }
 
@@ -329,9 +333,9 @@ static void setup() {
                 // Magnet gone = door open -- UV safety interlock
                 uvOn = false;
                 applyOutputs();
-                printf("EVENT: hall GP14 CLEAR (door open) -> UV OFF\n");
+                DLOG("EVENT: hall GP14 CLEAR (door open) -> UV OFF\n");
             } else {
-                printf("EVENT: hall GP14 DETECTED (door closed)\n");
+                DLOG("EVENT: hall GP14 DETECTED (door closed)\n");
             }
             sendStatus();
         }

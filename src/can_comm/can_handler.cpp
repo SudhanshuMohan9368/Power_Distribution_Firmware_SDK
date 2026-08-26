@@ -1,8 +1,8 @@
 #include "can_handler.h"
 #include "can_bus.h"
 #include "debounce.h"  // millis()
+#include "debug_log.h"
 #include "pico/stdlib.h"
-#include <cstdio>
 
 void processCan() {
     while (can_bus_available()) {
@@ -16,7 +16,7 @@ void processCan() {
         canActivityPulse();
         if (!canActive) {
             canActive = true;
-            printf("CAN: first 0x6A5 command -- TX now active\n");
+            DLOG("CAN: first 0x6A5 command -- TX now active\n");
         }
 
         uint8_t fn    = msg.data[0];
@@ -33,13 +33,13 @@ void processCan() {
                 // d[7]=0x00, d[2]=0x01   -> HARD OFF (stays off until explicit ON)
                 if (onoff == 0x01) {
                     if (emergencyActive()) {
-                        printf("CAN: SMPS blocked -- emergency active\n");
+                        DLOG("CAN: SMPS blocked -- emergency active\n");
                         sendAck(fn, sub);
                     } else {
                         smpsOn         = true;
                         softOffPending = false;
                         applyOutputs();
-                        printf("CAN: SMPS ON\n");
+                        DLOG("CAN: SMPS ON\n");
                         sendAck(fn, sub);
                         sendStatus();
                     }
@@ -48,11 +48,11 @@ void processCan() {
                     applyOutputs();
                     if (d2 == 0x01) {
                         softOffPending = false;
-                        printf("CAN: SMPS HARD OFF (permanent)\n");
+                        DLOG("CAN: SMPS HARD OFF (permanent)\n");
                     } else {
                         softOffPending   = true;
                         softOffRestartAt = millis() + SOFT_OFF_DELAY_MS;
-                        printf("CAN: SMPS SOFT OFF (restart in 10s)\n");
+                        DLOG("CAN: SMPS SOFT OFF (restart in 10s)\n");
                     }
                     sendAck(fn, sub);
                     sendStatus();
@@ -62,7 +62,7 @@ void processCan() {
             case 0x05:  // UV lamp (GP19)
                 uvOn = (onoff == 0x01);
                 applyOutputs();
-                printf("CAN: UV %s\n", uvOn ? "ON" : "OFF");
+                DLOG("CAN: UV %s\n", uvOn ? "ON" : "OFF");
                 sendAck(fn, sub);
                 sendStatus();
                 break;
@@ -70,7 +70,7 @@ void processCan() {
             case 0x06:  // HEPA fan (GP18) -- 12V on/off  d[7]=0x01=ON 0x00=OFF
                 fanOn = (onoff == 0x01);
                 gpio_put(PIN_FAN, fanOn);
-                printf("CAN: Fan %s\n", fanOn ? "ON" : "OFF");
+                DLOG("CAN: Fan %s\n", fanOn ? "ON" : "OFF");
                 sendAck(fn, sub);
                 sendStatus();
                 break;
@@ -78,7 +78,7 @@ void processCan() {
             case 0x04:  // Work light (GP17)
                 lightOn = (onoff == 0x01);
                 applyOutputs();
-                printf("CAN: Light %s\n", lightOn ? "ON" : "OFF");
+                DLOG("CAN: Light %s\n", lightOn ? "ON" : "OFF");
                 sendAck(fn, sub);
                 sendStatus();
                 break;
@@ -86,19 +86,19 @@ void processCan() {
             case 0x03:  // Heater relay (GP16) -- AC supply to heater board, default OFF, CAN-only
                 if (onoff == 0x01) {
                     if (emergencyActive()) {
-                        printf("CAN: Heater blocked -- emergency active\n");
+                        DLOG("CAN: Heater blocked -- emergency active\n");
                         sendAck(fn, sub);
                     } else {
                         heaterOn = true;
                         applyOutputs();
-                        printf("CAN: Heater relay ON\n");
+                        DLOG("CAN: Heater relay ON\n");
                         sendAck(fn, sub);
                         sendStatus();
                     }
                 } else {
                     heaterOn = false;
                     applyOutputs();
-                    printf("CAN: Heater relay OFF\n");
+                    DLOG("CAN: Heater relay OFF\n");
                     sendAck(fn, sub);
                     sendStatus();
                 }
@@ -115,13 +115,13 @@ void processCan() {
                     case 0x56: neo.setState(NeoState::RUNNING);       break;
                     default: break;
                 }
-                printf("CAN: Neo state=0x%02x\n", sub);
+                DLOG("CAN: Neo state=0x%02x\n", sub);
                 sendAck(fn, sub, d2);
                 break;
 
             case 0x08:  // NeoPixel colour -- d[1]=R  d[2]=G  d[3]=B
                 neo.setManual(sub, d2, d3);
-                printf("CAN: Neo R=%d G=%d B=%d\n", sub, d2, d3);
+                DLOG("CAN: Neo R=%d G=%d B=%d\n", sub, d2, d3);
                 sendAck(fn, sub, d2);
                 break;
 
@@ -134,7 +134,7 @@ void processCan() {
                 break;
 
             default:
-                printf("CAN: unknown fn=0x%02x\n", fn);
+                DLOG("CAN: unknown fn=0x%02x\n", fn);
                 break;
         }
     }

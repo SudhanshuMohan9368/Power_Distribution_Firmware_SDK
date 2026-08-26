@@ -16,6 +16,11 @@ bool can_bus_available();
 can2040_msg can_bus_read();
 bool can_bus_transmit(const can2040_msg &msg);
 
+// Diagnostics -- see PROTOCOL.md STATUS JSON fields "drops"/"buserr"/"txfail".
+uint32_t can_bus_rx_dropped();  // RX ring was full, ISR discarded a CAN_ID_CMD frame
+uint32_t can_bus_bus_errors();  // can2040 reported a bit-stuff/CRC/form/ACK error
+uint32_t can_bus_tx_failed();   // can2040_transmit()'s 4-deep queue was full
+
 // True if the frame is a standard (non-extended) 11-bit ID frame with the
 // given id. can2040 only masks off bits 0-10 in msg.id, so an extended
 // (29-bit) frame whose low bits alias a standard ID must be rejected

@@ -31,6 +31,12 @@ private:
     uint8_t r_[MAX_PIXELS]{};
     uint8_t g_[MAX_PIXELS]{};
     uint8_t b_[MAX_PIXELS]{};
+
+    // show() hands the strip write off to DMA instead of busy-waiting on the
+    // PIO TX FIFO -- ~750us/frame of main-loop time back for draining the
+    // CAN RX ring / servicing serial instead of spinning on pixel output.
+    int      dmaChan_ = -1;
+    uint32_t txBuf_[MAX_PIXELS]{};
 };
 
 #endif //POWER_DISTRIBUTION_CAN_WS2812_DRIVER_H

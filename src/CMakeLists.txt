@@ -32,3 +32,10 @@ pico_enable_stdio_uart(${PROJECT_NAME} 0)
 # block for up to ~1s per call, during which incoming CAN frames pile up
 # in the (now filtered, still finite) RX ring and get dropped.
 target_compile_definitions(${PROJECT_NAME} PRIVATE PICO_STDIO_USB_STDOUT_TIMEOUT_US=1000)
+
+# Verbose per-event CAN/GPIO tracing over USB stdio -- off by default, see
+# inc/debug_log.h. Configure with -DENABLE_DEBUG_LOG=ON for bench debugging.
+option(ENABLE_DEBUG_LOG "Verbose per-event CAN/GPIO tracing over USB stdio" OFF)
+if(ENABLE_DEBUG_LOG)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE ENABLE_DEBUG_LOG=1)
+endif()

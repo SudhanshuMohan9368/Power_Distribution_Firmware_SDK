@@ -156,11 +156,34 @@ Unrecognized input prints `ERR: unknown command -- type HELP`.
 ### STATUS JSON (serial, printed by `STATUS`, `HELP`-adjacent events, and most state changes)
 
 ```json
-{"smps":0,"uv":0,"fan":0,"light":0,"heater":0,"emergency":0,"limit":0,"hall":0,"powerbtn":0,"v24":0.00,"neo":0,"restart_in":7}
+{"smps":0,"uv":0,"fan":0,"light":0,"heater":0,"emergency":0,"limit":0,"hall":0,"powerbtn":0,"v24":0.00,"neo":0,"drops":0,"buserr":0,"txfail":0,"restart_in":7}
 ```
 
 `restart_in` (seconds until SMPS soft-off auto-restart) is only present
 while `softOffPending` is true.
+
+`drops`/`buserr`/`txfail` are free-running diagnostic counters from
+[`can_bus.cpp`](src/can_comm/can_bus.cpp), never reset except on reboot:
+
+| Field | Meaning |
+|---|---|
+| `drops` | RX ring (16 deep) was full when a valid `CAN_ID_CMD` frame arrived; the ISR discarded it |
+| `buserr` | can2040 reported a bit-stuff/CRC/form/ACK error on the wire |
+| `txfail` | `can2040_transmit()`'s internal 4-deep TX queue was full when `sendAck`/`sendStatus` tried to send |
+
+## Build-time debug tracing
+
+Per-event `CAN:`/`EVENT:` trace lines (state changes, button/sensor
+events) are compiled out by default -- see [`inc/debug_log.h`](inc/debug_log.h).
+They cost USB IRQ time that competes with can2040's real-time PIO IRQ, so
+they're opt-in only, via:
+
+```
+cmake -DENABLE_DEBUG_LOG=ON -S . -B build
+```
+
+The STATUS JSON line itself (above) is unaffected by this flag -- it's
+part of the serial protocol, not debug tracing.
 
 ## Safety interlocks (apply regardless of interface)
 

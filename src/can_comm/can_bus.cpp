@@ -13,7 +13,16 @@ static volatile can2040_msg rx_queue[RX_QUEUE_LEN];
 static volatile uint32_t rx_head = 0;  // next slot to write (IRQ context)
 static volatile uint32_t rx_tail = 0;  // next slot to read (main loop)
 
+// Stats -- so "is it dropping frames / seeing bus errors" is a number to
+// read off STATUS instead of a guess. Single-writer-per-counter (IRQ owns
+// rx_dropped/bus_errors, mainline owns tx_failed), so plain volatile is
+// enough on this single-core target -- no atomics needed.
+static volatile uint32_t rx_dropped_count = 0;
+static volatile uint32_t bus_error_count  = 0;
+static volatile uint32_t tx_failed_count  = 0;
+
 static void can2040_cb(struct can2040 *cd, uint32_t notify, struct can2040_msg *msg) {
+    if (notify & CAN2040_NOTIFY_ERROR) { bus_error_count++; return; }
     if (notify != CAN2040_NOTIFY_RX) return;
 
     // Filter here, not in processCan() -- every frame on the bus reaches this
@@ -22,7 +31,7 @@ static void can2040_cb(struct can2040 *cd, uint32_t notify, struct can2040_msg *
     if (!can_msg_is_standard_id(*msg, CAN_ID_CMD) || msg->dlc < 2) return;
 
     uint32_t next_head = (rx_head + 1) % RX_QUEUE_LEN;
-    if (next_head == rx_tail) return;  // queue full, drop frame
+    if (next_head == rx_tail) { rx_dropped_count++; return; }  // queue full, drop frame
 
     rx_queue[rx_head].id  = msg->id;
     rx_queue[rx_head].dlc = msg->dlc;
@@ -70,5 +79,11 @@ can2040_msg can_bus_read() {
 
 bool can_bus_transmit(const can2040_msg &msg) {
     can2040_msg m = msg;
-    return can2040_transmit(&cbus, &m) == 0;
+    bool ok = can2040_transmit(&cbus, &m) == 0;
+    if (!ok) tx_failed_count++;
+    return ok;
 }
+
+uint32_t can_bus_rx_dropped() { return rx_dropped_count; }
+uint32_t can_bus_bus_errors() { return bus_error_count; }
+uint32_t can_bus_tx_failed()  { return tx_failed_count; }
