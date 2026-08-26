@@ -1,0 +1,50 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Configure (CMake)",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-G", "Ninja",
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+                "-S", ".",
+                "-B", "build"
+            ],
+            "options": {
+                "env": {
+                    "PATH": "C:\\Program Files\\Raspberry Pi\\Pico SDK v1.5.1\\ninja;${env:PATH}"
+                }
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Build",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--build", "build"],
+            "options": {
+                "env": {
+                    "PATH": "C:\\Program Files\\Raspberry Pi\\Pico SDK v1.5.1\\ninja;${env:PATH}"
+                }
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": ["$gcc"],
+            "dependsOn": "Configure (CMake)"
+        },
+        {
+            "label": "Flash (OpenOCD)",
+            "type": "shell",
+            "command": "openocd",
+            "args": [
+                "-f", "platform/openocd.cfg",
+                "-c", "program build/src/power_distribution_can.elf verify reset exit"
+            ],
+            "problemMatcher": []
+        }
+    ]
+}
