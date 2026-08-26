@@ -42,7 +42,13 @@ void can_bus_init(PIO pio, uint32_t bitrate, uint8_t rx_pin, uint8_t tx_pin) {
 
     auto irqn = IRQn_Type((2 * pio_get_index(pio)) + PIO0_IRQ_0_IRQn);
     irq_set_exclusive_handler(irqn, pio_irq_handler);
-    NVIC_SetPriority(irqn, 1);
+    // Highest priority (0) -- can2040 is a bit-banged, cycle-critical PIO
+    // implementation. USB's IRQ is left at its unconfigured default, which
+    // is also the highest level, so a lower priority here would let heavy
+    // USB CDC traffic (this firmware printf()s on nearly every CAN event)
+    // preempt and delay CAN bit servicing mid-frame -- seen on the bus as
+    // stuff/CRC/form errors, not just a dropped frame on this node.
+    NVIC_SetPriority(irqn, 0);
 
     can2040_start(&cbus, clock_get_hz(clk_sys), bitrate, rx_pin, tx_pin);
     NVIC_EnableIRQ(irqn);
