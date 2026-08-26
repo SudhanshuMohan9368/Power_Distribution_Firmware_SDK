@@ -346,8 +346,8 @@ static void setup() {
         // 8. LED blink + CAN-activity LED pulse timeout (~1s)
         serviceHeartbeatAndCanLed();
 
-        // 9. Autonomous CAN STATUS heartbeat (~3s), independent of commands
-        serviceCanHeartbeat();
+        // 9. Autonomous CAN STATUS heartbeat -- disabled
+        // serviceCanHeartbeat();
 
         // 10. NeoPixel state machine -- always called, handles its own timing
         neo.update();
