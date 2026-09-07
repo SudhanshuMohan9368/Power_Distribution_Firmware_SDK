@@ -11,7 +11,7 @@
     GP13  NeoPixel 25px   GP14  Hall sensor  (active LOW = door closed)
     GP15  Level shifter EN (HIGH=enabled)
     GP16  Heater relay    GP17  Light 1   (heater relay: AC supply to heater board, CAN/serial-only, default OFF)
-    GP18  HEPA Fan        GP19  UV lamp
+    GP18  HEPA Fan PWM    GP19  UV lamp
     GP20  Power button    INPUT active LOW
     GP21  Emergency stop  INPUT active LOW
     GP24  CAN LED         GP25  Heartbeat LED
@@ -32,6 +32,7 @@
 
 #include "pico/stdlib.h"
 #include "hardware/adc.h"
+#include "hardware/pwm.h"
 #include "hardware/watchdog.h"
 #include <cstdio>
 
@@ -41,7 +42,8 @@ NeoFSM neo(pixel);
 
 // -- Output state --------------------------------------------------
 bool smpsOn   = false;
-bool fanOn    = false;   // HEPA fan (GP18) -- 12V on/off, no PWM
+bool fanOn    = false;   // HEPA fan (GP18) -- PWM
+uint8_t fanSpeed = 100;  // fan PWM duty %, applied only while fanOn (default full speed)
 bool uvOn     = false;   // UV lamp (GP19)
 bool lightOn  = false;   // work light (GP17)
 bool heaterOn = false;   // heater board AC supply relay (GP16) -- default OFF, CAN/serial-only
@@ -86,11 +88,16 @@ static uint8_t getSensorState() {
     return s;
 }
 
+static void setFanPwm(uint8_t percent) {
+    uint16_t level = (uint16_t)((uint32_t)(percent > 100 ? 100 : percent) * FAN_PWM_WRAP / 100);
+    pwm_set_chan_level(pwm_gpio_to_slice_num(PIN_FAN), pwm_gpio_to_channel(PIN_FAN), level);
+}
+
 void applyOutputs() {
     bool smpsActual   = smpsOn && !emergencyActive();
     bool heaterActual = heaterOn && !emergencyActive();  // AC heater relay -- emergency stop always wins
     gpio_put(PIN_SMPS, smpsActual);
-    gpio_put(PIN_FAN, fanOn);
+    setFanPwm(fanOn ? fanSpeed : 0);
     gpio_put(PIN_UV, uvOn);
     gpio_put(PIN_LIGHT_1, lightOn);
     gpio_put(PIN_HEATER_RELAY, heaterActual);
@@ -158,13 +165,14 @@ void sendStatus() {
         canActivityPulse();
     }
 
-    printf("{\"smps\":%d,\"uv\":%d,\"fan\":%d,\"light\":%d,\"heater\":%d,"
+    printf("{\"smps\":%d,\"uv\":%d,\"fan\":%d,\"fanspd\":%d,\"light\":%d,\"heater\":%d,"
            "\"emergency\":%d,\"limit\":%d,\"hall\":%d,\"powerbtn\":%d,"
            "\"v24\":%.2f,\"neo\":%d,\"drops\":%lu,\"buserr\":%lu,\"txfail\":%lu,"
            "\"txtry\":%lu,\"txok\":%lu",
            smpsOn && !emergencyActive() ? 1 : 0,
            uvOn ? 1 : 0,
            fanOn ? 1 : 0,
+           fanOn ? fanSpeed : 0,
            lightOn ? 1 : 0,
            heaterOn && !emergencyActive() ? 1 : 0,
            emergencyActive() ? 1 : 0,
@@ -254,13 +262,23 @@ static void setup() {
     initGpioOutput(PIN_CAN_STBY, true);
     initGpioOutput(PIN_CAN_STBY2, true);
     initGpioOutput(PIN_SMPS, false);
-    initGpioOutput(PIN_FAN, false);
     initGpioOutput(PIN_UV, false);
     initGpioOutput(PIN_LIGHT_1, false);
     initGpioOutput(PIN_HEATER_RELAY, false);  // default OFF until CAN/serial command
     initGpioOutput(PIN_LEVEL_SHIFTER_EN, true);  // must be HIGH to enable the level-shifter IC
     initGpioOutput(PIN_LED_CAN, false);
     initGpioOutput(PIN_LED_STATUS, true);
+
+    // HEPA fan speed -- 3-wire fan (red=24V, black=GND, yellow=PWM on this
+    // pin), 25kHz duty cycle. Starts at 0% (fanOn=false); applyOutputs()
+    // sets the real level once something turns it on.
+    gpio_set_function(PIN_FAN, GPIO_FUNC_PWM);
+    {
+        uint fanSlice = pwm_gpio_to_slice_num(PIN_FAN);
+        pwm_set_wrap(fanSlice, FAN_PWM_WRAP);
+        pwm_set_chan_level(fanSlice, pwm_gpio_to_channel(PIN_FAN), 0);
+        pwm_set_enabled(fanSlice, true);
+    }
 
     initGpioInput(PIN_EMERGENCY, true);
     initGpioInput(PIN_POWER_BTN, true);

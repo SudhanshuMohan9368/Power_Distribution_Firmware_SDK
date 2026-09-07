@@ -17,6 +17,7 @@ target_link_libraries(${PROJECT_NAME}
         hardware_dma
         hardware_sync
         hardware_clocks
+        hardware_pwm
         can_comm
         can
         neopixel

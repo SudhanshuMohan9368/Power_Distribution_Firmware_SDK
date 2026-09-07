@@ -15,7 +15,7 @@ constexpr uint8_t PIN_CAN_STBY2 = 10;
 
 // -- Outputs ------------------------------------------------------
 constexpr uint8_t PIN_SMPS         = 9;    // SMPS MOSFET, HIGH = ON
-constexpr uint8_t PIN_FAN          = 18;   // HEPA fan, 12V on/off (no PWM)
+constexpr uint8_t PIN_FAN          = 18;   // HEPA fan speed -- PWM (24V/GND on fan's own wires, this pin is the yellow PWM lead)
 constexpr uint8_t PIN_UV           = 19;   // UV lamp
 constexpr uint8_t PIN_LIGHT_1      = 17;   // work light
 constexpr uint8_t PIN_HEATER_RELAY = 16;   // heater board AC supply relay -- default OFF, CAN/serial-only
@@ -40,6 +40,12 @@ constexpr float R3_OHMS = 1000.0f;
 constexpr uint16_t CAN_ID_CMD  = 0x6A5;  // master -> board
 constexpr uint16_t CAN_ID_RESP = 0x6B5;  // board -> master
 constexpr uint32_t CAN_BITRATE = 500000; // 500 kbps
+
+// -- HEPA fan PWM -- standard 3-wire fan (red=24V, black=GND, yellow=PWM) --
+// 25kHz is the common 3/4-wire fan PWM frequency (audible-noise-free, and
+// what most fan ICs/controllers expect on the speed-control lead).
+constexpr uint32_t FAN_PWM_FREQ_HZ = 25000;
+constexpr uint16_t FAN_PWM_WRAP    = 4999;  // clk_sys(125MHz)/(wrap+1) = 25kHz @ clkdiv=1
 
 // -- Output bit masks -- STATUS frame d[1] -------------------------
 // bit0=SMPS bit1=UV bit2=Fan bit3=Light bit4=Heater relay bits5-7=reserved

@@ -7,7 +7,8 @@
 
 // -- Shared output state — defined in main.cpp ------------------
 extern bool smpsOn;
-extern bool fanOn;     // 12V on/off — no PWM
+extern bool fanOn;       // gates the fan PWM output on/off
+extern uint8_t fanSpeed; // PWM duty % (0-100), applied only while fanOn
 extern bool uvOn;
 extern bool lightOn;   // work light (GP17)
 extern bool heaterOn;  // heater relay (GP16), default OFF

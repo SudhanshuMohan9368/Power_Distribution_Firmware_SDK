@@ -9,6 +9,7 @@
 // -- Shared output state — defined in main.cpp ------------------
 extern bool smpsOn;
 extern bool fanOn;
+extern uint8_t fanSpeed;
 extern bool uvOn;
 extern bool lightOn;
 extern bool heaterOn;

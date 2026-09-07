@@ -68,10 +68,18 @@ void processCan() {
                 sendStatus();
                 break;
 
-            case 0x06:  // HEPA fan (GP18) -- 12V on/off  d[7]=0x01=ON 0x00=OFF
+            case 0x06:  // HEPA fan (GP18) -- PWM  d[7]=0x01=ON 0x00=OFF
                 fanOn = (onoff == 0x01);
-                gpio_put(PIN_FAN, fanOn);
-                DLOG("CAN: Fan %s\n", fanOn ? "ON" : "OFF");
+                applyOutputs();
+                DLOG("CAN: Fan %s (speed=%d%%)\n", fanOn ? "ON" : "OFF", fanSpeed);
+                sendAck(fn, sub);
+                sendStatus();
+                break;
+
+            case 0x0B:  // HEPA fan PWM speed -- d[1]=percent (0-100), applied only while fanOn
+                fanSpeed = sub > 100 ? 100 : sub;
+                applyOutputs();
+                DLOG("CAN: Fan speed=%d%%\n", fanSpeed);
                 sendAck(fn, sub);
                 sendStatus();
                 break;

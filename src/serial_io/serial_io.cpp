@@ -63,7 +63,8 @@ void handleSerialLine(char *line) {
         printf("STATUS / HELP\n");
         printf("M1/M0           SMPS ON / HARD-OFF (serial is always hard off)\n");
         printf("UV1/UV0         UV lamp (GP19) ON/OFF\n");
-        printf("F1/F0           HEPA fan ON/OFF (12V)\n");
+        printf("F1/F0           HEPA fan ON/OFF (PWM)\n");
+        printf("FAN <0-100>     HEPA fan PWM speed %% (only takes effect while ON)\n");
         printf("L1/L0           Work light (GP17) ON/OFF\n");
         printf("H1/H0           Heater relay (GP16) ON/OFF -- AC supply to heater board\n");
         printf("ADC / LIMIT / HALL\n");
@@ -97,12 +98,26 @@ void handleSerialLine(char *line) {
     if (startsWith(line, "UV1")) { uvOn = true;  applyOutputs(); printf("UV ON\n");  sendStatus(); return; }
     if (startsWith(line, "UV0")) { uvOn = false; applyOutputs(); printf("UV OFF\n"); sendStatus(); return; }
 
-    // HEPA fan ON/OFF (12V digital)
+    // HEPA fan ON/OFF (PWM)
     if (toupper((unsigned char)line[0]) == 'F' && line[1] == '1' && line[2] == 0) {
-        fanOn = true;  applyOutputs(); printf("Fan ON\n");  sendStatus(); return;
+        fanOn = true;  applyOutputs(); printf("Fan ON (speed=%d%%)\n", fanSpeed);  sendStatus(); return;
     }
     if (toupper((unsigned char)line[0]) == 'F' && line[1] == '0' && line[2] == 0) {
         fanOn = false; applyOutputs(); printf("Fan OFF\n"); sendStatus(); return;
+    }
+
+    // HEPA fan PWM speed, 0-100%. Only takes effect while the fan is ON.
+    if (startsWith(line, "FAN ")) {
+        char *p = line + 4;
+        while (*p == ' ') p++;
+        bool ok = false;
+        int v = parseByte(p, ok);
+        if (!ok || v < 0 || v > 100) { printf("ERR: FAN <0-100>\n"); return; }
+        fanSpeed = (uint8_t)v;
+        applyOutputs();
+        printf("Fan speed %d%%\n", fanSpeed);
+        sendStatus();
+        return;
     }
 
     // Work light (GP17)

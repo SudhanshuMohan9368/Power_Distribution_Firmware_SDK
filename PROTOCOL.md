@@ -49,11 +49,12 @@ Source of truth: [`src/can_comm/can_handler.cpp`](src/can_comm/can_handler.cpp),
 | `0x03` | Heater relay (GP16, AC supply) | — | `0x01`=ON (blocked if emergency active); `0x00`=OFF |
 | `0x04` | Work light (GP17) | — | `0x01`=ON / `0x00`=OFF |
 | `0x05` | UV lamp (GP19) | — | `0x01`=ON / `0x00`=OFF |
-| `0x06` | HEPA fan (GP18, 12V digital) | — | `0x01`=ON / `0x00`=OFF |
+| `0x06` | HEPA fan (GP18, PWM) | — | `0x01`=ON / `0x00`=OFF — drives at the last speed set via `fn=0x0B` (default 100%) |
 | `0x07` | NeoPixel state | `sub`: state code (table below); `d2`: PROGRESS count | — |
 | `0x08` | NeoPixel manual colour, all 25px | `sub`=R, `d2`=G, `d3`=B | — |
 | `0x09` | Full status request | — | triggers `sendStatus()` |
 | `0x0A` | NeoPixel count+colour fill | `sub`=count (0-25), `d2`=R, `d3`=G, `d4`=B — lights the first `count` pixels that colour, rest off | — |
+| `0x0B` | HEPA fan PWM speed | `sub`=percent (0-100, clamped) — only takes effect while the fan is ON (`fn=0x06`); orthogonal to on/off | — |
 | other | — | — | logged as `unknown fn`, no reply |
 
 Every handled `fn` (except `0x09`, which just calls `sendStatus()`) replies
@@ -141,7 +142,8 @@ Case-insensitive. Also printed live by the `HELP` command.
 | `STATUS` | Print the JSON status line (see below) |
 | `M1` / `M0` | SMPS ON / OFF — serial OFF is **always** hard off (clears `softOffPending`); `M1` blocked if emergency active |
 | `UV1` / `UV0` | UV lamp (GP19) ON/OFF |
-| `F1` / `F0` | HEPA fan (GP18) ON/OFF |
+| `F1` / `F0` | HEPA fan (GP18, PWM) ON/OFF |
+| `FAN <0-100>` | HEPA fan PWM speed % -- only takes effect while the fan is ON |
 | `L1` / `L0` | Work light (GP17) ON/OFF |
 | `H1` / `H0` | Heater relay (GP16) ON/OFF — blocked ON if emergency active |
 | `ADC` | Print raw ADC3 reading and computed 24V-rail voltage |
@@ -159,11 +161,12 @@ Unrecognized input prints `ERR: unknown command -- type HELP`.
 ### STATUS JSON (serial, printed by `STATUS`, `HELP`-adjacent events, and most state changes)
 
 ```json
-{"smps":0,"uv":0,"fan":0,"light":0,"heater":0,"emergency":0,"limit":0,"hall":0,"powerbtn":0,"v24":0.00,"neo":0,"drops":0,"buserr":0,"txfail":0,"txtry":0,"txok":0,"restart_in":7}
+{"smps":0,"uv":0,"fan":0,"fanspd":0,"light":0,"heater":0,"emergency":0,"limit":0,"hall":0,"powerbtn":0,"v24":0.00,"neo":0,"drops":0,"buserr":0,"txfail":0,"txtry":0,"txok":0,"restart_in":7}
 ```
 
 `restart_in` (seconds until SMPS soft-off auto-restart) is only present
-while `softOffPending` is true.
+while `softOffPending` is true. `fanspd` is the active PWM duty % (0 when
+the fan is off, regardless of what speed was last set).
 
 `drops`/`buserr`/`txfail`/`txtry`/`txok` are free-running diagnostic
 counters from [`can_bus.cpp`](src/can_comm/can_bus.cpp), never reset
