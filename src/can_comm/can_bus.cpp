@@ -20,9 +20,12 @@ static volatile uint32_t rx_tail = 0;  // next slot to read (main loop)
 static volatile uint32_t rx_dropped_count = 0;
 static volatile uint32_t bus_error_count  = 0;
 static volatile uint32_t tx_failed_count  = 0;
+static volatile uint32_t tx_attempt_count = 0;  // every can_bus_transmit() call, success or fail
+static volatile uint32_t tx_sent_count    = 0;  // can2040 confirmed the frame actually went out
 
 static void can2040_cb(struct can2040 *cd, uint32_t notify, struct can2040_msg *msg) {
     if (notify & CAN2040_NOTIFY_ERROR) { bus_error_count++; return; }
+    if (notify == CAN2040_NOTIFY_TX) { tx_sent_count++; return; }
     if (notify != CAN2040_NOTIFY_RX) return;
 
     // Filter here, not in processCan() -- every frame on the bus reaches this
@@ -78,12 +81,15 @@ can2040_msg can_bus_read() {
 }
 
 bool can_bus_transmit(const can2040_msg &msg) {
+    tx_attempt_count++;
     can2040_msg m = msg;
     bool ok = can2040_transmit(&cbus, &m) == 0;
     if (!ok) tx_failed_count++;
     return ok;
 }
 
-uint32_t can_bus_rx_dropped() { return rx_dropped_count; }
-uint32_t can_bus_bus_errors() { return bus_error_count; }
-uint32_t can_bus_tx_failed()  { return tx_failed_count; }
+uint32_t can_bus_rx_dropped()   { return rx_dropped_count; }
+uint32_t can_bus_bus_errors()   { return bus_error_count; }
+uint32_t can_bus_tx_failed()    { return tx_failed_count; }
+uint32_t can_bus_tx_attempted() { return tx_attempt_count; }
+uint32_t can_bus_tx_sent()      { return tx_sent_count; }

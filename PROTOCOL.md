@@ -36,12 +36,13 @@ Source of truth: [`src/can_comm/can_handler.cpp`](src/can_comm/can_handler.cpp),
 | `d[1]` | `sub` | Sub-code / parameter, meaning depends on `fn` |
 | `d[2]` | `d2` | Extra parameter (present if `dlc > 2`, else 0) |
 | `d[3]` | `d3` | Extra parameter (present if `dlc > 3`, else 0) |
-| `d[4..6]` | — | Unused |
+| `d[4]` | `d4` | Extra parameter (present if `dlc > 4`, else 0) — only `fn=0x0A` reads this |
+| `d[5..6]` | — | Unused |
 | `d[7]` | `onoff` | `0x01` = ON, `0x00` = OFF (present if `dlc > 7`, else 0) |
 
 ### Function codes (`fn`)
 
-| `fn` | Function | `sub` / `d2` / `d3` | `onoff` (`d[7]`) |
+| `fn` | Function | `sub` / `d2` / `d3` / `d4` | `onoff` (`d[7]`) |
 |---|---|---|---|
 | `0x01` | SMPS / machine power | `d2`: `0x00`=soft off, `0x01`=hard off (only read when `onoff=0x00`) | `0x01`=ON (cancels pending soft-off, blocked if emergency active); `0x00`=OFF |
 | `0x02` | Poll sensors | — | `sendAck(0x02, 0, 0)` — reply's `d[6]` sensor byte *is* the poll result |
@@ -50,8 +51,9 @@ Source of truth: [`src/can_comm/can_handler.cpp`](src/can_comm/can_handler.cpp),
 | `0x05` | UV lamp (GP19) | — | `0x01`=ON / `0x00`=OFF |
 | `0x06` | HEPA fan (GP18, 12V digital) | — | `0x01`=ON / `0x00`=OFF |
 | `0x07` | NeoPixel state | `sub`: state code (table below); `d2`: PROGRESS count | — |
-| `0x08` | NeoPixel manual colour | `sub`=R, `d2`=G, `d3`=B | — |
+| `0x08` | NeoPixel manual colour, all 25px | `sub`=R, `d2`=G, `d3`=B | — |
 | `0x09` | Full status request | — | triggers `sendStatus()` |
+| `0x0A` | NeoPixel count+colour fill | `sub`=count (0-25), `d2`=R, `d3`=G, `d4`=B — lights the first `count` pixels that colour, rest off | — |
 | other | — | — | logged as `unknown fn`, no reply |
 
 Every handled `fn` (except `0x09`, which just calls `sendStatus()`) replies
@@ -69,16 +71,17 @@ with an ACK frame; most also follow up with a STATUS frame.
 | `sub` | State |
 |---|---|
 | `0x50` | INIT |
-| `0x51` | PROGRESS (`d2` = 0–25 count) |
+| `0x51` | PROGRESS (`d2` = 0–25 count) — green only: brighter green fill over a dim green base |
 | `0x52` | ERROR |
 | `0x53` | COMPLETE |
 | `0x54` | IDLE |
 | `0x55` | OFF |
 | `0x56` | RUNNING |
 
-(`MANUAL` and `RAINBOW` states exist in the `NeoState` enum but have no
-CAN sub-code — MANUAL is reached only via `fn=0x08`, RAINBOW only via the
-serial `NEO RAINBOW` command.)
+(`MANUAL`, `RAINBOW`, and `PIXEL_FILL` states exist in the `NeoState` enum
+but have no `fn=0x07` sub-code — MANUAL is reached only via `fn=0x08`,
+PIXEL_FILL only via `fn=0x0A`, RAINBOW only via the serial `NEO RAINBOW`
+command.)
 
 ### ACK frame (`0x6B5`, board → master, `sendAck`)
 
@@ -103,7 +106,7 @@ Sent after most state changes and on `fn=0x09`; suppressed on CAN until
 | `d[0]` | `0xFF` (frame-type tag: STATUS) |
 | `d[1]` | output bits — see table below |
 | `d[2]` | sensor-state byte (bit0=limit, bit1=hall, bit2=emergency) |
-| `d[3]` | `NeoState` enum value (0=IDLE … 8=OFF) |
+| `d[3]` | `NeoState` enum value (0=IDLE … 8=OFF, 9=PIXEL_FILL) |
 | `d[4]` | ADC3 raw reading, high byte |
 | `d[5]` | ADC3 raw reading, low byte |
 | `d[6]` | `0x00` |
@@ -156,20 +159,38 @@ Unrecognized input prints `ERR: unknown command -- type HELP`.
 ### STATUS JSON (serial, printed by `STATUS`, `HELP`-adjacent events, and most state changes)
 
 ```json
-{"smps":0,"uv":0,"fan":0,"light":0,"heater":0,"emergency":0,"limit":0,"hall":0,"powerbtn":0,"v24":0.00,"neo":0,"drops":0,"buserr":0,"txfail":0,"restart_in":7}
+{"smps":0,"uv":0,"fan":0,"light":0,"heater":0,"emergency":0,"limit":0,"hall":0,"powerbtn":0,"v24":0.00,"neo":0,"drops":0,"buserr":0,"txfail":0,"txtry":0,"txok":0,"restart_in":7}
 ```
 
 `restart_in` (seconds until SMPS soft-off auto-restart) is only present
 while `softOffPending` is true.
 
-`drops`/`buserr`/`txfail` are free-running diagnostic counters from
-[`can_bus.cpp`](src/can_comm/can_bus.cpp), never reset except on reboot:
+`drops`/`buserr`/`txfail`/`txtry`/`txok` are free-running diagnostic
+counters from [`can_bus.cpp`](src/can_comm/can_bus.cpp), never reset
+except on reboot:
 
 | Field | Meaning |
 |---|---|
 | `drops` | RX ring (16 deep) was full when a valid `CAN_ID_CMD` frame arrived; the ISR discarded it |
 | `buserr` | can2040 reported a bit-stuff/CRC/form/ACK error on the wire |
 | `txfail` | `can2040_transmit()`'s internal 4-deep TX queue was full when `sendAck`/`sendStatus` tried to send |
+| `txtry` | Total transmit attempts -- every `can_bus_transmit()` call, whether it succeeded or not |
+| `txok` | Total frames can2040 confirmed actually went out on the wire (`CAN2040_NOTIFY_TX`) -- always `<= txtry`; a growing gap between them means frames are being queued but not landing on the bus |
+
+### Live CAN diagnostics line (serial, unprompted, ~1Hz)
+
+Independent of `STATUS` and not gated behind `ENABLE_DEBUG_LOG` -- fixed
+1Hz cost regardless of bus load, printed automatically so the counters
+are visible on a plain serial monitor with no other input needed:
+
+```
+CANDBG rx_drop=0 bus_err=0 tx_fail=0 tx_try=0 tx_ok=0
+```
+
+Same five counters as the STATUS JSON's `drops`/`buserr`/`txfail`/`txtry`/
+`txok`, just on their own line every ~1s (`CAN_DIAG_PRINT_MS` in
+[`inc/board.h`](inc/board.h)) instead of only on demand. See
+`serviceCanDiagPrint()` in [`src/main.cpp`](src/main.cpp).
 
 ## Build-time debug tracing
 

@@ -43,6 +43,12 @@ void NeoFSM::setManual(uint8_t r, uint8_t g, uint8_t b) {
     manualR = r; manualG = g; manualB = b;
 }
 
+void NeoFSM::setPixelFill(uint8_t count, uint8_t r, uint8_t g, uint8_t b) {
+    state     = NeoState::PIXEL_FILL;
+    fillCount = count > NEO_N ? NEO_N : count;
+    manualR = r; manualG = g; manualB = b;
+}
+
 void NeoFSM::fillAll(uint8_t r, uint8_t g, uint8_t b) {
     for (int i = 0; i < NEO_N; i++) px.setPixelColor(i, r, g, b);
     px.show();
@@ -83,12 +89,10 @@ void NeoFSM::update() {
                 for (int i = 0; i < NEO_N; i++) {
                     if (i < progressN) {
                         uint8_t g = Ws2812Strip::gamma8(gBr);
-                        uint8_t b = Ws2812Strip::gamma8((uint8_t)((uint16_t)gBr * 30 / 255));
-                        px.setPixelColor(i, 0, g, b);
+                        px.setPixelColor(i, 0, g, 0);
                     } else {
-                        uint8_t r = Ws2812Strip::gamma8((uint8_t)((uint16_t)baseDim * 255 / 50));
-                        uint8_t g = Ws2812Strip::gamma8((uint8_t)((uint16_t)baseDim * 140 / 50));
-                        px.setPixelColor(i, r, g, 0);
+                        uint8_t g = Ws2812Strip::gamma8(baseDim);
+                        px.setPixelColor(i, 0, g, 0);
                     }
                 }
                 px.show();
@@ -155,6 +159,21 @@ void NeoFSM::update() {
             fillAll(0, 0, 0);
             state   = NeoState::MANUAL;
             manualR = manualG = manualB = 0;
+            break;
+        }
+
+        case NeoState::PIXEL_FILL: {
+            if (now - lastUpdateMs >= 50) {
+                lastUpdateMs = now;
+                uint8_t r = Ws2812Strip::gamma8(manualR);
+                uint8_t g = Ws2812Strip::gamma8(manualG);
+                uint8_t b = Ws2812Strip::gamma8(manualB);
+                for (int i = 0; i < NEO_N; i++) {
+                    if (i < fillCount) px.setPixelColor(i, r, g, b);
+                    else                px.setPixelColor(i, 0, 0, 0);
+                }
+                px.show();
+            }
             break;
         }
     }

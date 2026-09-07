@@ -20,6 +20,7 @@ constexpr uint8_t PIN_UV           = 19;   // UV lamp
 constexpr uint8_t PIN_LIGHT_1      = 17;   // work light
 constexpr uint8_t PIN_HEATER_RELAY = 16;   // heater board AC supply relay -- default OFF, CAN/serial-only
 constexpr uint8_t PIN_NEOPIXEL     = 13;
+constexpr uint8_t PIN_LEVEL_SHIFTER_EN = 15;  // logic-level translator IC enable -- HIGH = enabled
 constexpr uint8_t PIN_LED_CAN      = 24;
 constexpr uint8_t PIN_LED_STATUS   = 25;
 
@@ -55,6 +56,7 @@ constexpr uint32_t CAN_PULSE_MS      = 120;
 constexpr uint32_t SOFT_OFF_DELAY_MS = 10000;  // CAN soft-off auto-restart delay
 constexpr uint32_t WATCHDOG_MS       = 2000;
 constexpr uint32_t CAN_HEARTBEAT_MS  = 3000;  // autonomous STATUS broadcast interval
+constexpr uint32_t CAN_DIAG_PRINT_MS = 1000;  // serial-only CAN counter print interval
 
 // -- Compile-time pin conflict checks ------------------------------
 static_assert(PIN_FAN       != PIN_NEOPIXEL,     "PIN conflict: FAN vs NEOPIXEL");

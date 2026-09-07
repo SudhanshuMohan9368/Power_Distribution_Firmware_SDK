@@ -23,6 +23,7 @@ void processCan() {
         uint8_t sub   = msg.data[1];
         uint8_t d2    = (msg.dlc > 2) ? msg.data[2] : 0;
         uint8_t d3    = (msg.dlc > 3) ? msg.data[3] : 0;
+        uint8_t d4    = (msg.dlc > 4) ? msg.data[4] : 0;
         uint8_t onoff = (msg.dlc > 7) ? msg.data[7] : 0;   // 0x01=ON 0x00=OFF
 
         switch (fn) {
@@ -122,6 +123,12 @@ void processCan() {
             case 0x08:  // NeoPixel colour -- d[1]=R  d[2]=G  d[3]=B
                 neo.setManual(sub, d2, d3);
                 DLOG("CAN: Neo R=%d G=%d B=%d\n", sub, d2, d3);
+                sendAck(fn, sub, d2);
+                break;
+
+            case 0x0A:  // NeoPixel count+colour fill -- d[1]=count d[2]=R d[3]=G d[4]=B
+                neo.setPixelFill(sub, d2, d3, d4);
+                DLOG("CAN: Neo fill count=%d R=%d G=%d B=%d\n", sub, d2, d3, d4);
                 sendAck(fn, sub, d2);
                 break;
 

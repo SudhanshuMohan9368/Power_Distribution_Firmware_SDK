@@ -9,6 +9,7 @@
     GP7   CAN_STBY        GP9   SMPS MOSFET (HIGH=ON)
     GP10  CAN_STANDBY2    GP12  Limit switch (active LOW)
     GP13  NeoPixel 25px   GP14  Hall sensor  (active LOW = door closed)
+    GP15  Level shifter EN (HIGH=enabled)
     GP16  Heater relay    GP17  Light 1   (heater relay: AC supply to heater board, CAN/serial-only, default OFF)
     GP18  HEPA Fan        GP19  UV lamp
     GP20  Power button    INPUT active LOW
@@ -159,7 +160,8 @@ void sendStatus() {
 
     printf("{\"smps\":%d,\"uv\":%d,\"fan\":%d,\"light\":%d,\"heater\":%d,"
            "\"emergency\":%d,\"limit\":%d,\"hall\":%d,\"powerbtn\":%d,"
-           "\"v24\":%.2f,\"neo\":%d,\"drops\":%lu,\"buserr\":%lu,\"txfail\":%lu",
+           "\"v24\":%.2f,\"neo\":%d,\"drops\":%lu,\"buserr\":%lu,\"txfail\":%lu,"
+           "\"txtry\":%lu,\"txok\":%lu",
            smpsOn && !emergencyActive() ? 1 : 0,
            uvOn ? 1 : 0,
            fanOn ? 1 : 0,
@@ -173,7 +175,9 @@ void sendStatus() {
            (int)neo.state,
            (unsigned long)can_bus_rx_dropped(),
            (unsigned long)can_bus_bus_errors(),
-           (unsigned long)can_bus_tx_failed());
+           (unsigned long)can_bus_tx_failed(),
+           (unsigned long)can_bus_tx_attempted(),
+           (unsigned long)can_bus_tx_sent());
 
     if (softOffPending) {
         auto t = (int32_t)(softOffRestartAt - millis());
@@ -209,6 +213,23 @@ static void serviceCanHeartbeat() {
     }
 }
 
+// Serial-only packet diagnostics -- no CAN traffic, doesn't touch canActive,
+// just a fixed-rate printf so the counters are visible on a plain serial
+// monitor without needing the debug probe. Fixed 1Hz cost regardless of bus
+// load, unlike the per-event CAN:/EVENT: traces gated behind ENABLE_DEBUG_LOG.
+static uint32_t lastCanDiagPrintMs = 0;
+static void serviceCanDiagPrint() {
+    if (millis() - lastCanDiagPrintMs >= CAN_DIAG_PRINT_MS) {
+        lastCanDiagPrintMs = millis();
+        printf("CANDBG rx_drop=%lu bus_err=%lu tx_fail=%lu tx_try=%lu tx_ok=%lu\n",
+               (unsigned long)can_bus_rx_dropped(),
+               (unsigned long)can_bus_bus_errors(),
+               (unsigned long)can_bus_tx_failed(),
+               (unsigned long)can_bus_tx_attempted(),
+               (unsigned long)can_bus_tx_sent());
+    }
+}
+
 static void initGpioOutput(uint8_t pin, bool initial) {
     gpio_init(pin);
     gpio_set_dir(pin, GPIO_OUT);
@@ -237,6 +258,7 @@ static void setup() {
     initGpioOutput(PIN_UV, false);
     initGpioOutput(PIN_LIGHT_1, false);
     initGpioOutput(PIN_HEATER_RELAY, false);  // default OFF until CAN/serial command
+    initGpioOutput(PIN_LEVEL_SHIFTER_EN, true);  // must be HIGH to enable the level-shifter IC
     initGpioOutput(PIN_LED_CAN, false);
     initGpioOutput(PIN_LED_STATUS, true);
 
@@ -266,8 +288,9 @@ static void setup() {
     gpio_put(PIN_CAN_STBY, false);
     gpio_put(PIN_CAN_STBY2, false);
 
-    lastHeartbeatMs    = millis();
-    lastCanHeartbeatMs = millis();
+    lastHeartbeatMs     = millis();
+    lastCanHeartbeatMs  = millis();
+    lastCanDiagPrintMs  = millis();
 
     // Watchdog -- resets the board if the main loop stalls for > 2s.
     watchdog_enable(WATCHDOG_MS, true);
@@ -348,6 +371,9 @@ static void setup() {
 
         // 9. Autonomous CAN STATUS heartbeat -- disabled
         // serviceCanHeartbeat();
+
+        // 9b. Serial-only CAN packet diagnostics (~1Hz) -- see PROTOCOL.md
+        serviceCanDiagPrint();
 
         // 10. NeoPixel state machine -- always called, handles its own timing
         neo.update();
