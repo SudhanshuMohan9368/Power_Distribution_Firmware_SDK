@@ -27,10 +27,11 @@ extern bool softOffPending;  // serial M0 must clear this (serial = always hard 
 extern NeoFSM neo;
 
 // -- Shared functions — defined in main.cpp ----------------------
-void  applyOutputs();
-bool  emergencyActive();
-void  sendStatus();
-float read24V();
+void    applyOutputs();
+bool    emergencyActive();
+void    sendStatus();
+float   read24V();
+uint8_t effectiveFanSpeed();
 
 // -- Public API ------------------------------------------------------
 void handleSerialLine(char *line);

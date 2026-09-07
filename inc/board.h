@@ -46,6 +46,9 @@ constexpr uint32_t CAN_BITRATE = 500000; // 500 kbps
 // what most fan ICs/controllers expect on the speed-control lead).
 constexpr uint32_t FAN_PWM_FREQ_HZ = 25000;
 constexpr uint16_t FAN_PWM_WRAP    = 4999;  // clk_sys(125MHz)/(wrap+1) = 25kHz @ clkdiv=1
+constexpr uint8_t  FAN_MIN_DUTY_PCT = 25;   // floor while fanOn -- below this the fan may
+                                             // stall (locked-rotor protection makes that safe,
+                                             // just not useful); "on" should mean "spinning"
 
 // -- Output bit masks -- STATUS frame d[1] -------------------------
 // bit0=SMPS bit1=UV bit2=Fan bit3=Light bit4=Heater relay bits5-7=reserved

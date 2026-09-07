@@ -57,6 +57,21 @@ Source of truth: [`src/can_comm/can_handler.cpp`](src/can_comm/can_handler.cpp),
 | `0x0B` | HEPA fan PWM speed | `sub`=percent (0-100, clamped) — only takes effect while the fan is ON (`fn=0x06`); orthogonal to on/off | — |
 | other | — | — | logged as `unknown fn`, no reply |
 
+**Fan speed floor**: GP18 is a MOSFET switching the fan's 24V supply, PWM'd
+at 25kHz (`FAN_PWM_FREQ_HZ`/`FAN_PWM_WRAP` in [`inc/board.h`](inc/board.h))
+rather than a dedicated PWM-input pin on the fan itself (this fan model has
+none — its third wire is a locked-rotor sensor, not a control input).
+Whatever speed is requested via `fn=0x0B` or serial `FAN <n>`, the actual
+duty applied while the fan is ON never drops below `FAN_MIN_DUTY_PCT`
+(25%) -- below that the fan may not maintain commutation and stalls
+(harmless, per its built-in locked-rotor protection, but pointless). See
+`effectiveFanSpeed()` in [`src/main.cpp`](src/main.cpp). `STATUS`'s
+`fanspd` field reports this floored (actual) value; the CAN ACK frame
+for `fn=0x0B` still echoes back the raw requested `sub` byte, matching
+every other command's ACK semantics (echo, not confirmation-of-effect) --
+there is no numeric fan-speed field in the CAN STATUS frame, only the
+on/off bit.
+
 Every handled `fn` (except `0x09`, which just calls `sendStatus()`) replies
 with an ACK frame; most also follow up with a STATUS frame.
 

@@ -93,11 +93,19 @@ static void setFanPwm(uint8_t percent) {
     pwm_set_chan_level(pwm_gpio_to_slice_num(PIN_FAN), pwm_gpio_to_channel(PIN_FAN), level);
 }
 
+// Actual duty applied to the fan -- floors to FAN_MIN_DUTY_PCT while ON so a
+// low requested speed doesn't silently stall the fan (safe, per the fan's
+// locked-rotor protection, but not useful); 0 while OFF.
+uint8_t effectiveFanSpeed() {
+    if (!fanOn) return 0;
+    return fanSpeed < FAN_MIN_DUTY_PCT ? FAN_MIN_DUTY_PCT : fanSpeed;
+}
+
 void applyOutputs() {
     bool smpsActual   = smpsOn && !emergencyActive();
     bool heaterActual = heaterOn && !emergencyActive();  // AC heater relay -- emergency stop always wins
     gpio_put(PIN_SMPS, smpsActual);
-    setFanPwm(fanOn ? fanSpeed : 0);
+    setFanPwm(effectiveFanSpeed());
     gpio_put(PIN_UV, uvOn);
     gpio_put(PIN_LIGHT_1, lightOn);
     gpio_put(PIN_HEATER_RELAY, heaterActual);
@@ -172,7 +180,7 @@ void sendStatus() {
            smpsOn && !emergencyActive() ? 1 : 0,
            uvOn ? 1 : 0,
            fanOn ? 1 : 0,
-           fanOn ? fanSpeed : 0,
+           effectiveFanSpeed(),
            lightOn ? 1 : 0,
            heaterOn && !emergencyActive() ? 1 : 0,
            emergencyActive() ? 1 : 0,

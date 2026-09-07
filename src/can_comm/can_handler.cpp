@@ -71,7 +71,7 @@ void processCan() {
             case 0x06:  // HEPA fan (GP18) -- PWM  d[7]=0x01=ON 0x00=OFF
                 fanOn = (onoff == 0x01);
                 applyOutputs();
-                DLOG("CAN: Fan %s (speed=%d%%)\n", fanOn ? "ON" : "OFF", fanSpeed);
+                DLOG("CAN: Fan %s (speed=%d%%)\n", fanOn ? "ON" : "OFF", effectiveFanSpeed());
                 sendAck(fn, sub);
                 sendStatus();
                 break;
@@ -79,7 +79,7 @@ void processCan() {
             case 0x0B:  // HEPA fan PWM speed -- d[1]=percent (0-100), applied only while fanOn
                 fanSpeed = sub > 100 ? 100 : sub;
                 applyOutputs();
-                DLOG("CAN: Fan speed=%d%%\n", fanSpeed);
+                DLOG("CAN: Fan speed=%d%%\n", effectiveFanSpeed());
                 sendAck(fn, sub);
                 sendStatus();
                 break;

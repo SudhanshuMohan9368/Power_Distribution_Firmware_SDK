@@ -24,10 +24,11 @@ extern uint32_t softOffRestartAt;  // millis() target to restart SMPS
 extern NeoFSM neo;
 
 // -- Shared functions — defined in main.cpp ----------------------
-void applyOutputs();
-bool emergencyActive();
-void canActivityPulse();
-void sendStatus();
+void    applyOutputs();
+bool    emergencyActive();
+void    canActivityPulse();
+void    sendStatus();
+uint8_t effectiveFanSpeed();
 
 // ACK: echoes fn/sub/d2, appends live sensor_state, d[7]=0x02 always.
 void sendAck(uint8_t fn, uint8_t sub, uint8_t d2 = 0);

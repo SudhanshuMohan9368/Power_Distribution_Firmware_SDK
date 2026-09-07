@@ -100,7 +100,7 @@ void handleSerialLine(char *line) {
 
     // HEPA fan ON/OFF (PWM)
     if (toupper((unsigned char)line[0]) == 'F' && line[1] == '1' && line[2] == 0) {
-        fanOn = true;  applyOutputs(); printf("Fan ON (speed=%d%%)\n", fanSpeed);  sendStatus(); return;
+        fanOn = true;  applyOutputs(); printf("Fan ON (speed=%d%%)\n", effectiveFanSpeed());  sendStatus(); return;
     }
     if (toupper((unsigned char)line[0]) == 'F' && line[1] == '0' && line[2] == 0) {
         fanOn = false; applyOutputs(); printf("Fan OFF\n"); sendStatus(); return;
